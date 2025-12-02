@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# ML artifacts
+models/*.pkl
+mlruns/
+*.h5
+*.pkl
+
+# Logs
+logs/
+*.log
+
+# Results
+results/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+*.tmp
+.pytest_cache/
+.coverage
