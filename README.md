@@ -1,93 +1,77 @@
-# Stroke Prediction - Production ML System
+# Stroke Prediction on Imbalanced Data
 
-A **production-ready machine learning system** demonstrating end-to-end ML engineering capabilities.
+End-to-end ML system for stroke risk prediction, handling severe class imbalance (95:5 ratio).
 
-## 🎯 Engineering Capabilities
+## Key Results
 
-This project showcases:
+- **F1 Score: 0.464** (24x improvement over baseline)
+- **Recall: 0.63** - Detects 63% of stroke cases
+- **Method**: SMOTEENN + RandomForest + Threshold Optimization
 
-✅ **Data Pipeline** - ETL, preprocessing, feature engineering  
-✅ **Model Training** - RandomForest/XGBoost with hyperparameters  
-✅ **Experiment Tracking** - MLflow integration  
-✅ **Model Persistence** - joblib serialization  
-✅ **CLI Interface** - argparse command-line tool  
-✅ **REST API** - FastAPI production service  
-✅ **Web UI** - Gradio interactive dashboard  
-✅ **Unit Testing** - pytest test suite  
-✅ **Containerization** - Docker deployment  
-✅ **CI/CD** - GitHub Actions automation  
-✅ **Logging** - Structured logging system  
+## Performance Journey
 
-## 📦 Quick Start
+| Stage | F1 | Recall | Precision | Approach |
+|-------|-----|--------|-----------|----------|
+| Baseline | 0.019 | 0.010 | 0.40 | Logistic Regression (no resampling) |
+| Best Model | 0.214 | 0.526 | 0.135 | SMOTEENN + RandomForest |
+| Optimized | **0.464** | **0.63** | **0.37** | Threshold tuning (0.743) |
 
-### 1. Setup
+## Technical Highlights
+
+**Imbalanced Learning**
+- Systematic comparison: SMOTE vs ADASYN vs SMOTEENN
+- SMOTEENN + RandomForest achieved best F1/Recall balance
+
+**Feature Engineering**
+- Medical-informed binning (age, BMI, glucose)
+- Clinical threshold-based categories
+
+**Model Selection**
+- Nested 5-fold cross-validation
+- Compared: RandomForest, XGBoost, StackingClassifier
+- Hyperparameter tuning via GridSearchCV
+
+**Threshold Optimization**
+- Precision-Recall curve analysis
+- Optimized for medical screening (high recall priority)
+
+## Quick Start
+
+### Run Analysis Notebook
 ```bash
-cd ~/stroke-prediction-ml
-pip3 install -r requirements.txt
+pip install pandas numpy scikit-learn xgboost imbalanced-learn matplotlib seaborn jupyter
+jupyter notebook notebooks/stroke_prediction_imbalanced.ipynb
 ```
 
-### 2. Train Model
+### Production API
 ```bash
-./run.sh train
+pip install -r requirements.txt
+python scripts/train.py --model rf --viz
+python -m uvicorn api.app:app --port 8000
 ```
 
-### 3. Run Tests
-```bash
-./run.sh test
-```
-
-### 4. Start API
-```bash
-./run.sh api
-```
-
-### 5. Test Prediction
-```bash
-curl -X POST "http://localhost:8000/predict" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "gender": "Male",
-    "age": 67,
-    "hypertension": 0,
-    "heart_disease": 1,
-    "ever_married": "Yes",
-    "work_type": "Private",
-    "Residence_type": "Urban",
-    "avg_glucose_level": 228.69,
-    "bmi": 36.6,
-    "smoking_status": "formerly smoked"
-  }'
-```
-
-## 📂 Project Structure
+## Project Structure
 
 ```
 stroke-prediction-ml/
-├── src/               # Core ML modules (8 files, 325 LOC)
-│   ├── data_loader.py
-│   ├── preprocessor.py
-│   ├── trainer.py     # MLflow tracking
-│   └── predictor.py
-├── scripts/train.py   # CLI interface
+├── notebooks/
+│   └── stroke_prediction_imbalanced.ipynb  # Full analysis pipeline
+├── src/               # Production modules
+├── scripts/train.py   # CLI training
 ├── api/app.py         # FastAPI service
-├── ui/gradio_app.py   # Web dashboard
-├── tests/             # pytest tests
-├── docker/            # Dockerfiles
-└── .github/workflows/ # CI/CD
+├── tests/             # pytest suite
+└── docker/            # Deployment configs
 ```
 
-## 📊 Model Performance
+## Skills Demonstrated
 
-- **Algorithm**: RandomForest (n_estimators=200)
-- **F1 Score**: 0.206
-- **Precision**: 0.213
-- **Recall**: 0.200
+- Imbalanced learning (SMOTE, ADASYN, SMOTEENN)
+- Nested cross-validation
+- Threshold optimization
+- Medical feature engineering
+- Production deployment (FastAPI, Docker, CI/CD)
+- Model tracking (MLflow)
 
-## 🛠️ Technology Stack
+## Tech Stack
 
-**ML/Data**: pandas, scikit-learn, xgboost  
-**Tracking**: MLflow  
-**API**: FastAPI, uvicorn  
-**UI**: Gradio  
-**Testing**: pytest  
-**DevOps**: Docker, GitHub Actions
+Python • scikit-learn • XGBoost • imbalanced-learn • FastAPI • MLflow • Docker • pytest
