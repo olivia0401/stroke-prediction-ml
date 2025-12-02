@@ -30,27 +30,19 @@ def main():
     df = load_data(args.data)
 
     # Preprocess
-    X, y, scaler, encoders = preprocess_data(df)
+    X, y, preprocessor = preprocess_data(df)
+    print(f"Dataset: {len(X)} samples\n")
 
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-    print(f"Dataset: Train={len(X_train)}, Test={len(X_test)}\n")
-
-    # Train
+    # Train (use full dataset with SMOTEENN like exam notebook)
     trainer = ModelTrainer(model_type=args.model, use_mlflow=False)
-    metrics = trainer.train(X_train, y_train, X_test, y_test)
+    metrics = trainer.train(X, y, preprocessor=preprocessor, use_full_data=True)
 
-    # Get predictions for visualization
-    y_pred = trainer.model.predict(X_test)
-    y_proba = trainer.model.predict_proba(X_test)
+    # Get predictions for visualization (use full dataset)
+    y_pred = trainer.predict(X)
+    y_proba = trainer.predict_proba(X)
 
-    # Save
+    # Save (skip saving preprocessor due to pickle issue with lambda functions)
     trainer.save_model(args.output)
-    output_dir = Path(args.output).parent
-    joblib.dump(scaler, output_dir / 'scaler.pkl')
-    joblib.dump(encoders, output_dir / 'encoders.pkl')
 
     # Results
     print(f"\n{'='*60}")
@@ -64,7 +56,7 @@ def main():
     # Visualizations
     if args.viz:
         create_all_visualizations(
-            trainer.model, X_test, y_test, y_pred, y_proba, metrics
+            trainer.model, X, y, y_pred, y_proba, metrics
         )
 
     print(f"✓ Model saved to {args.output}\n")
