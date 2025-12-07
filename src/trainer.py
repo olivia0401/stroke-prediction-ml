@@ -163,10 +163,17 @@ class ModelTrainer:
         return self.model.predict_proba(X)
 
     def save_model(self, filepath: str = 'models/model.pkl'):
-        """Save trained model"""
+        """Save trained model (excluding preprocessing step to avoid pickle issues)"""
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
+
+        # Extract only the classifier from pipeline
+        if hasattr(self.model, 'named_steps'):
+            clf_only = self.model.named_steps['clf']
+        else:
+            clf_only = self.model
+
         joblib.dump({
-            'model': self.model,
+            'model': clf_only,
             'threshold': self.best_threshold,
             'model_type': self.model_type
         }, filepath)
