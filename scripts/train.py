@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 
 def main():
     parser = argparse.ArgumentParser(description='Train stroke prediction model')
-    parser.add_argument('--data', type=str, default='data/stroke-data.csv')
+    parser.add_argument('--data', type=str, default=str(Path(__file__).resolve().parent.parent / 'data' / 'stroke-data.csv'))
     parser.add_argument('--model', choices=['rf', 'xgb'], default='rf')
     parser.add_argument('--output', type=str, default='models/model.pkl')
     parser.add_argument('--viz', action='store_true', help='Generate visualizations')

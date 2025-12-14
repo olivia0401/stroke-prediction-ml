@@ -4,49 +4,49 @@ import pandas as pd
 
 
 class StrokePredictor:
-    """Stroke risk predictor"""
+    """Stroke risk predictor using a unified pipeline artifact"""
 
-    def __init__(self, model_path, scaler_path, encoders_path):
-        """Load model and preprocessors"""
-        self.model = joblib.load(model_path)
-        self.scaler = joblib.load(scaler_path)
-        self.encoders = joblib.load(encoders_path)
-
-    def predict(self, X):
-        """Predict stroke risk
-        
-        Args:
-            X: DataFrame or dict
-            
-        Returns:
-            Predictions (0 or 1)
+    def __init__(self, artifact_path: str):
         """
-        if isinstance(X, dict):
-            X = pd.DataFrame([X])
-        
-        X = X.copy()
-        
-        # Encode categorical features
-        for col, encoder in self.encoders.items():
-            if col in X.columns:
-                X[col] = encoder.transform(X[col])
-        
-        # Scale features
-        X_scaled = self.scaler.transform(X)
-        
-        # Predict
-        return self.model.predict(X_scaled)
+        Load the entire model artifact, which includes the preprocessing
+        pipeline, the classifier, and the prediction threshold.
+        """
+        artifact = joblib.load(artifact_path)
+        self.pipeline = artifact['pipeline']
+        self.threshold = artifact['threshold']
+        self.model_type = artifact.get('model_type', 'unknown')
 
-    def predict_proba(self, X):
-        """Predict probabilities"""
-        if isinstance(X, dict):
-            X = pd.DataFrame([X])
+    def predict(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Predict stroke risk using the optimized threshold.
+
+        Args:
+            X: DataFrame with input features.
+
+        Returns:
+            A Series of binary predictions (0 or 1).
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+
+        # The pipeline handles all preprocessing
+        y_proba = self.pipeline.predict_proba(X)[:, 1]
         
-        X = X.copy()
+        # Apply the optimized threshold
+        return (y_proba >= self.threshold).astype(int)
+
+    def predict_proba(self, X: pd.DataFrame) -> pd.Series:
+        """
+        Predict stroke risk probabilities.
+
+        Args:
+            X: DataFrame with input features.
+
+        Returns:
+            A Series of prediction probabilities for the positive class.
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
         
-        for col, encoder in self.encoders.items():
-            if col in X.columns:
-                X[col] = encoder.transform(X[col])
-        
-        X_scaled = self.scaler.transform(X)
-        return self.model.predict_proba(X_scaled)
+        # The pipeline handles all preprocessing
+        return self.pipeline.predict_proba(X)

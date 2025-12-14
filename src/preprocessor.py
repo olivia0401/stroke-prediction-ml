@@ -43,50 +43,51 @@ def preprocess_data(df):
     return X, y, preprocessor
 
 
+def make_bins(X):
+    """Medical-informed binning function"""
+    # Ensure input is a DataFrame with correct columns
+    if not isinstance(X, pd.DataFrame):
+        X = pd.DataFrame(X, columns=['age', 'bmi', 'avg_glucose_level'])
+    
+    df = X[['age', 'bmi', 'avg_glucose_level']].copy()
+
+    df['age_bin'] = pd.cut(
+        df['age'],
+        bins=[0, 24, 44, 64, 79, 150],
+        labels=['<25', '25-44', '45-64', '65-79', '80+'],
+        right=False
+    )
+
+    df['bmi_bin'] = pd.cut(
+        df['bmi'],
+        bins=[0, 18.5, 24.9, 29.9, 100],
+        labels=['Underweight', 'Normal', 'Overweight', 'Obese'],
+        right=False
+    )
+
+    df['glu_bin'] = pd.cut(
+        df['avg_glucose_level'],
+        bins=[0, 70, 84, 99, 109, 125, 139, float('inf')],
+        labels=['<70', '70-84', '85-99', '100-109', '110-125', '126-139', '≥140'],
+        right=False
+    )
+
+    return df[['age_bin', 'bmi_bin', 'glu_bin']]
+
 def create_preprocessor():
     """
     Create sklearn ColumnTransformer with medical feature engineering
-
-    Binning strategy (based on clinical thresholds):
-    - Age: <25, 25-44, 45-64, 65-79, 80+
-    - BMI: Underweight (<18.5), Normal (18.5-24.9), Overweight (25-29.9), Obese (≥30)
-    - Glucose: <70, 70-84, 85-99, 100-109, 110-125, 126-139, ≥140
+    ...
     """
-
-    def make_bins(X):
-        """Medical-informed binning function"""
-        df = pd.DataFrame(X, columns=['age', 'bmi', 'avg_glucose_level'])
-
-        df['age_bin'] = pd.cut(
-            df['age'],
-            bins=[0, 24, 44, 64, 79, 150],
-            labels=['<25', '25-44', '45-64', '65-79', '80+']
-        )
-
-        df['bmi_bin'] = pd.cut(
-            df['bmi'],
-            bins=[0, 18.5, 24.9, 29.9, 100],
-            labels=['Underweight', 'Normal', 'Overweight', 'Obese']
-        )
-
-        df['glu_bin'] = pd.cut(
-            df['avg_glucose_level'],
-            bins=[0, 70, 84, 99, 109, 125, 139, float('inf')],
-            labels=['<70', '70-84', '85-99', '100-109', '110-125', '126-139', '≥140']
-        )
-
-        return df[['age_bin', 'bmi_bin', 'glu_bin']]
-
     # Binning pipeline
+    # Note: FunctionTransformer now correctly references the top-level `make_bins`
     bin_encoder = ImbPipeline([
         ('bin', FunctionTransformer(make_bins, validate=False)),
         ('ohe', OneHotEncoder(handle_unknown='ignore'))
     ])
-
-    # Numeric features (keep original for precision)
+    
+    # ... rest of the function is the same
     numeric_features = ['age', 'bmi', 'avg_glucose_level']
-
-    # Create ColumnTransformer
     preprocessor = ColumnTransformer([
         ('bins', bin_encoder, ['age', 'bmi', 'avg_glucose_level']),
         ('num', StandardScaler(), numeric_features),
@@ -96,5 +97,4 @@ def create_preprocessor():
             'hypertension', 'heart_disease'
         ])
     ])
-
     return preprocessor

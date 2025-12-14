@@ -163,27 +163,14 @@ class ModelTrainer:
         return self.model.predict_proba(X)
 
     def save_model(self, filepath: str = 'models/model.pkl'):
-        """Save trained model (excluding preprocessing step to avoid pickle issues)"""
+        """Save the entire trained pipeline and threshold."""
         Path(filepath).parent.mkdir(parents=True, exist_ok=True)
 
-        # Extract only the classifier from pipeline
-        if hasattr(self.model, 'named_steps'):
-            clf_only = self.model.named_steps['clf']
-        else:
-            clf_only = self.model
-
-        joblib.dump({
-            'model': clf_only,
+        # Save the entire pipeline, not just the classifier
+        artifact = {
+            'pipeline': self.model,
             'threshold': self.best_threshold,
             'model_type': self.model_type
-        }, filepath)
-        logger.info(f"Model saved to {filepath}")
-
-    @staticmethod
-    def load_model(filepath: str):
-        """Load trained model"""
-        data = joblib.load(filepath)
-        trainer = ModelTrainer(model_type=data['model_type'], use_smoteenn=False)
-        trainer.model = data['model']
-        trainer.best_threshold = data.get('threshold', 0.5)
-        return trainer
+        }
+        joblib.dump(artifact, filepath)
+        logger.info(f"Entire model artifact (pipeline + threshold) saved to {filepath}")
