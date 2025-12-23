@@ -5,10 +5,9 @@ from pathlib import Path
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import (
-    classification_report, f1_score, precision_score, recall_score,
+    f1_score, precision_score, recall_score,
     precision_recall_curve
 )
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.combine import SMOTEENN
 from .logger import setup_logger

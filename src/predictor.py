@@ -31,7 +31,7 @@ class StrokePredictor:
 
         # The pipeline handles all preprocessing
         y_proba = self.pipeline.predict_proba(X)[:, 1]
-        
+
         # Apply the optimized threshold
         return (y_proba >= self.threshold).astype(int)
 
@@ -47,6 +47,6 @@ class StrokePredictor:
         """
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
-        
+
         # The pipeline handles all preprocessing
         return self.pipeline.predict_proba(X)

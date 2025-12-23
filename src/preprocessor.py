@@ -1,10 +1,10 @@
 """Data preprocessing pipeline with medical feature engineering"""
 import pandas as pd
-import numpy as np
 import re
 from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransformer
 from sklearn.compose import ColumnTransformer
 from imblearn.pipeline import Pipeline as ImbPipeline
+
 
 def preprocess_data(df):
     """
@@ -48,7 +48,7 @@ def make_bins(X):
     # Ensure input is a DataFrame with correct columns
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X, columns=['age', 'bmi', 'avg_glucose_level'])
-    
+
     df = X[['age', 'bmi', 'avg_glucose_level']].copy()
 
     df['age_bin'] = pd.cut(
@@ -74,6 +74,7 @@ def make_bins(X):
 
     return df[['age_bin', 'bmi_bin', 'glu_bin']]
 
+
 def create_preprocessor():
     """
     Create sklearn ColumnTransformer with medical feature engineering
@@ -85,7 +86,7 @@ def create_preprocessor():
         ('bin', FunctionTransformer(make_bins, validate=False)),
         ('ohe', OneHotEncoder(handle_unknown='ignore'))
     ])
-    
+
     # ... rest of the function is the same
     numeric_features = ['age', 'bmi', 'avg_glucose_level']
     preprocessor = ColumnTransformer([
