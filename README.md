@@ -2,7 +2,8 @@
 
 An end-to-end production-ready machine learning system for stroke risk prediction, addressing the challenges of severe class imbalance (19:1 ratio) through advanced resampling techniques, medical-informed feature engineering, and threshold optimization.
 
-[![Demo Video](https://img.shields.io/badge/Watch-Demo%20Video-red?logo=youtube)](https://youtu.be/ZGAPtW54aSA)
+[![Demo Video](https://img.youtube.com/vi/ZGAPtW54aSA/hqdefault.jpg)](https://www.youtube.com/watch?v=ZGAPtW54aSA)
+
 
 ## 🎯 Project Overview
 
