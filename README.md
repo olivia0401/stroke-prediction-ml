@@ -1,7 +1,9 @@
 # Stroke Prediction ML Service
 
 This project is an end-to-end machine learning application designed to predict the likelihood of a patient having a stroke. It covers the complete ML lifecycle, from data preprocessing and model training to serving predictions via a REST API.
-https://youtu.be/ZGAPtW54aSA
+[![Demo Video](https://youtu.be/ZGAPtW54aSA)](https://youtu.be/ZGAPtW54aSA)
+
+
 
 ## Features
 
