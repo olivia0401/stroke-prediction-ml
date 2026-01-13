@@ -12,7 +12,7 @@ class StrokePredictor:
         pipeline, the classifier, and the prediction threshold.
         """
         artifact = joblib.load(artifact_path)
-        self.pipeline = artifact['pipeline']
+        self.pipeline = artifact.get('pipeline') or artifact.get('model')
         self.threshold = artifact['threshold']
         self.model_type = artifact.get('model_type', 'unknown')
 

@@ -8,6 +8,7 @@ This project is an end-to-end machine learning application designed to predict t
 -   **Imbalanced Data Handling:** Utilizes `SMOTEENN` (a combination of over- and under-sampling) to effectively handle the severe class imbalance in the stroke dataset.
 -   **Model Training:** Trains a high-performance classifier (Random Forest or XGBoost) and optimizes the classification threshold to maximize the F1-score, which is critical for imbalanced datasets.
 -   **Unified Model Artifact:** The entire preprocessing pipeline, sampler, and trained model are saved as a single, portable `model.pkl` file, simplifying deployment.
+-   **Web UI:** A user-friendly Gradio interface for interactive stroke risk prediction.
 -   **REST API:** A FastAPI service exposes the prediction logic, allowing for easy integration with other applications. The API is compatible with both Pydantic v1 and v2.
 -   **CI/CD:** A GitHub Actions workflow is included to automate testing and ensure code quality.
 
@@ -30,6 +31,8 @@ This project is an end-to-end machine learning application designed to predict t
 │   └── predictor.py      # Prediction logic using the saved model
 ├── tests/
 │   └── test_preprocessor.py # Unit tests for the preprocessing pipeline
+├── app_ui.py             # Gradio web interface
+├── test_ui.py            # UI testing script
 └── requirements.txt      # Project dependencies
 ```
 
@@ -56,13 +59,20 @@ This project is an end-to-end machine learning application designed to predict t
     python3 scripts/train.py --model xgb
     ```
 
-4.  **Run the API Service:**
+4.  **Run the Web UI (Recommended):**
+    Launch the interactive Gradio interface for easy predictions.
+    ```bash
+    python3 app_ui.py
+    ```
+    Then open your browser and navigate to `http://localhost:7860`
+
+5.  **Run the API Service (Alternative):**
     This command starts the FastAPI server.
     ```bash
     uvicorn api.app:app --host 0.0.0.0 --port 8000
     ```
 
-5.  **Make a Prediction:**
+6.  **Make a Prediction via API:**
     Once the server is running, you can send a `POST` request to the `/predict` endpoint. You can also access the interactive API documentation at `http://localhost:8000/docs`.
 
     **Example `curl` request:**
@@ -71,8 +81,7 @@ This project is an end-to-end machine learning application designed to predict t
       'http://localhost:8000/predict' \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
-      -d 
-      {
+      -d '{
             "gender": "Male",
             "age": 67,
             "hypertension": 0,
@@ -83,5 +92,30 @@ This project is an end-to-end machine learning application designed to predict t
             "avg_glucose_level": 228.69,
             "bmi": 36.6,
             "smoking_status": "formerly smoked"
-          }
+          }'
     ```
+
+## Web UI Features
+
+The Gradio web interface (`app_ui.py`) provides:
+
+-   **Interactive Form**: Easy-to-use input fields for all patient parameters
+-   **Real-time Prediction**: Instant stroke risk assessment with probability scores
+-   **Example Data**: Pre-loaded test cases for quick demonstration
+-   **Responsive Design**: Clean, professional interface accessible from any browser
+
+**Input Parameters:**
+- Gender (Male/Female/Other)
+- Age
+- Hypertension (0=No, 1=Yes)
+- Heart Disease (0=No, 1=Yes)
+- Ever Married (Yes/No)
+- Work Type (Private/Self-employed/Govt_job/children/Never_worked)
+- Residence Type (Urban/Rural)
+- Average Glucose Level
+- BMI
+- Smoking Status (never smoked/formerly smoked/smokes/Unknown)
+
+**Output:**
+- Prediction: High Risk / Low Risk
+- Stroke Probability: Percentage score
