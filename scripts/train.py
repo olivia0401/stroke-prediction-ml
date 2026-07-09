@@ -33,9 +33,10 @@ def main():
     X, y, preprocessor = preprocess_data(df)
     print(f"Dataset: {len(X)} samples\n")
 
-    # Train (use full dataset with SMOTEENN like exam notebook)
+    # Train: fit the final pipeline on all data and get an honest,
+    # cross-validated performance estimate (see ModelTrainer.train).
     trainer = ModelTrainer(model_type=args.model, use_mlflow=False)
-    metrics = trainer.train(X, y, preprocessor=preprocessor, use_full_data=True)
+    metrics = trainer.train(X, y, preprocessor=preprocessor)
 
     # Get predictions for visualization (use full dataset)
     y_pred = trainer.predict(X)
@@ -44,13 +45,15 @@ def main():
     # Save (skip saving preprocessor due to pickle issue with lambda functions)
     trainer.save_model(args.output)
 
-    # Results
+    # Results (cross-validated, held-out estimate)
     print(f"\n{'='*60}")
-    print("MODEL PERFORMANCE")
+    print("MODEL PERFORMANCE (5-fold cross-validated)")
     print(f"{'='*60}")
-    print(f"F1 Score:   {metrics['f1_score']:.4f}")
-    print(f"Precision:  {metrics['precision']:.4f}")
-    print(f"Recall:     {metrics['recall']:.4f}")
+    print(f"F1 Score:   {metrics['f1_score']:.4f} +/- {metrics['f1_score_std']:.4f}")
+    print(f"Precision:  {metrics['precision']:.4f} +/- {metrics['precision_std']:.4f}")
+    print(f"Recall:     {metrics['recall']:.4f} +/- {metrics['recall_std']:.4f}")
+    print(f"AUC-ROC:    {metrics['roc_auc']:.4f} +/- {metrics['roc_auc_std']:.4f}")
+    print(f"Deployment threshold: {metrics['threshold']:.3f}")
     print(f"{'='*60}\n")
 
     # Visualizations

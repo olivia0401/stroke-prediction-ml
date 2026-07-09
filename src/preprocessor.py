@@ -6,6 +6,23 @@ from sklearn.compose import ColumnTransformer
 from imblearn.pipeline import Pipeline as ImbPipeline
 
 
+def normalize_columns(df):
+    """
+    Normalize column names to lowercase snake_case.
+
+    This is applied both at training time and at serving time so that the
+    fitted ColumnTransformer (which references columns such as
+    ``residence_type``) always receives the exact column names it expects,
+    regardless of the raw casing used by the caller (e.g. ``Residence_type``).
+
+    Returns:
+        A copy of ``df`` with normalized column names.
+    """
+    df = df.copy()
+    df.columns = df.columns.str.lower().map(lambda s: re.sub(r'[^0-9a-z_]', '_', s))
+    return df
+
+
 def preprocess_data(df):
     """
     Complete preprocessing pipeline based on Exam Notebook approach
@@ -31,7 +48,7 @@ def preprocess_data(df):
         df = df.drop(columns=['id'])
 
     # Normalize column names (lowercase + snake_case)
-    df.columns = df.columns.str.lower().map(lambda s: re.sub(r'[^0-9a-z_]', '_', s))
+    df = normalize_columns(df)
 
     # 3. Separate X and y
     X = df.drop(columns='stroke')

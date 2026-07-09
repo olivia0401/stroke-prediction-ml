@@ -15,27 +15,41 @@ This project demonstrates comprehensive ML engineering capabilities across the e
 
 ## 🏆 Model Performance
 
+> **How these numbers are measured.** All metrics below are **held-out estimates
+> from 5-fold stratified cross-validation** (mean ± standard deviation across
+> folds). Within each fold the model is fit on the training split and the
+> decision threshold is tuned on that same training split, then both are scored
+> on the untouched validation split. This avoids the optimistic bias you get
+> from scoring on the data used to fit the model and tune the threshold.
+> Numbers are reproducible with `python3 scripts/train.py --model xgb`.
+
 ### Best Model: XGBoost + SMOTEENN + Threshold Optimization
 
-| Metric | Value | Clinical Impact |
-|--------|-------|-----------------|
-| **F1-Score** | **0.592** | Balanced performance for imbalanced data |
-| **Recall** | **86.1%** | Detects 86 out of 100 stroke cases |
-| **Precision** | **45.1%** | 45% of predicted strokes are true positives |
-| **Optimized Threshold** | **0.803** | Tuned for maximum F1-score |
+| Metric | Value (5-fold CV) | Clinical Impact |
+|--------|-------------------|-----------------|
+| **F1-Score** | **0.22 ± 0.02** | Modest at the F1-optimal threshold under severe imbalance |
+| **Recall** | **0.29 ± 0.05** | Detects ~29 out of 100 stroke cases at this operating point |
+| **Precision** | **0.18 ± 0.02** | ~18% of predicted strokes are true positives |
+| **AUC-ROC** | **0.79 ± 0.02** | Solid threshold-independent ranking ability |
 
-**Medical Significance:**
-- Only 14% of stroke cases missed (vs 48% with default threshold)
-- Suitable for early screening where false positives are acceptable
-- 28% better F1-score than Random Forest baseline
+The **AUC-ROC of ~0.79** shows the model has real discriminative power; the low
+F1/precision reflect the genuine difficulty of a 19:1 imbalanced screening task,
+where the F1-maximizing threshold still admits many false positives. The
+operating threshold can be shifted along the precision–recall curve to trade
+recall for precision depending on the clinical use case.
 
-### Comparison with Alternative Approaches
+### Comparison of Models (5-fold CV)
 
-| Model | F1-Score | Recall | Precision | Notes |
-|-------|----------|--------|-----------|-------|
-| **XGBoost + SMOTEENN** | **0.592** | **86.1%** | 45.1% | ✅ Best overall |
-| Random Forest + SMOTEENN | 0.457 | 51.7% | 40.9% | Good baseline |
-| Logistic Regression (baseline) | 0.009 | 0.5% | 20.0% | ❌ Fails on imbalanced data |
+| Model | F1-Score | Recall | Precision | AUC-ROC |
+|-------|----------|--------|-----------|---------|
+| **XGBoost + SMOTEENN** | **0.22 ± 0.02** | **0.29 ± 0.05** | 0.18 ± 0.02 | 0.79 ± 0.02 |
+| Random Forest + SMOTEENN | 0.20 ± 0.06 | 0.22 ± 0.09 | 0.19 ± 0.05 | 0.81 ± 0.01 |
+
+> **Note on earlier figures.** Prior versions of this README reported much
+> higher numbers (e.g. F1 ≈ 0.59, recall ≈ 86%). Those were computed on the
+> same data used to fit the model and tune the threshold, so they overstated
+> real-world performance. The table above replaces them with honest
+> cross-validated estimates.
 
 ## 🔬 Technical Strategy
 
@@ -113,13 +127,19 @@ Why SMOTEENN over alternatives?
 2. **ENN**: Remove noisy samples from both classes
 3. **Result**: Balanced dataset with cleaner decision boundaries
 
-**Impact:**
-- F1-Score improvement: 0.009 → 0.592 (65× improvement)
-- Recall improvement: 0.5% → 86.1% (172× improvement)
+> **Important:** SMOTEENN is applied **inside** the cross-validation loop —
+> only to each fold's training split, never to the held-out validation split.
+> Resampling before splitting is a classic source of leakage; keeping it inside
+> the pipeline (via `imblearn.pipeline`) prevents synthetic minority samples
+> from leaking into evaluation.
 
 ### 4. Model Selection Strategy
 
-**Approach:** Systematic comparison using nested cross-validation
+**Approach:** Comparison of tree-based models with fixed, pre-selected
+hyperparameters (carried over from earlier notebook experimentation), evaluated
+with stratified 5-fold cross-validation. Hyperparameters are **not** re-searched
+in this pipeline — see the validation section below for exactly what the CV
+measures.
 
 **Why Tree-Based Models?**
 - ✅ Handle non-linear relationships (age × hypertension interactions)
@@ -159,41 +179,49 @@ XGBClassifier(
 # Find threshold that maximizes F1-score
 precision, recall, thresholds = precision_recall_curve(y_true, y_proba)
 f1_scores = 2 * (precision * recall) / (precision + recall)
-optimal_threshold = thresholds[argmax(f1_scores)]  # 0.803
+optimal_threshold = thresholds[argmax(f1_scores)]
 ```
 
-**Impact of Threshold Tuning:**
+**Leakage-safe thresholding.** The threshold is tuned **only on training data**
+— inside each CV fold during evaluation, and on the full training set for the
+deployed model. It is never fit on data used to report performance. Because the
+positive class is rare, the F1-optimal threshold typically lands well above 0.5.
 
-| Threshold | Recall | Precision | F1-Score | Clinical Tradeoff |
-|-----------|--------|-----------|----------|-------------------|
-| 0.5 (default) | 84.2% | 21.7% | 0.345 | Too many false positives |
-| **0.803 (optimal)** | **86.1%** | **45.1%** | **0.592** | ✅ Best balance |
-| 0.9 (conservative) | 62.0% | 68.0% | 0.648 | Misses too many strokes |
-
-**Why 0.803?**
+**Why tune the threshold at all?**
 - Prioritizes **recall** (detect strokes) over precision (avoid false alarms)
-- Medical ethics: Missing a stroke (false negative) is worse than unnecessary testing (false positive)
-- Achieves **86% recall** while maintaining **45% precision** (acceptable for screening)
+- Medical ethics: Missing a stroke (false negative) is worse than an
+  unnecessary follow-up test (false positive)
+- The operating point can be moved along the precision–recall curve to match
+  the tolerance for false positives in a given screening context
 
 ### 6. Model Validation Strategy
 
-**Nested Cross-Validation:**
+**Stratified K-Fold Cross-Validation (leakage-safe):**
 ```python
-Outer CV: 5-fold StratifiedKFold  # Unbiased performance estimate
-Inner CV: 4-fold StratifiedKFold  # Hyperparameter tuning
+StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+# Per fold:
+#   1. Fit pipeline (preprocess -> SMOTEENN -> model) on the TRAIN split only
+#   2. Tune the decision threshold on the TRAIN split only
+#   3. Score F1 / precision / recall / AUC on the untouched VALIDATION split
+# Report the mean ± std of each metric across folds.
 ```
 
-**Why Nested CV?**
-- ✅ Prevents overfitting during hyperparameter search
-- ✅ Stratified folds preserve class distribution in each fold
-- ✅ Realistic estimate of production performance
+**Why this design?**
+- ✅ Preprocessing, resampling, and threshold tuning all happen **inside** each
+  fold, so nothing from the validation split leaks into fitting
+- ✅ Stratified folds preserve the ~5% stroke rate in each split
+- ✅ Produces a realistic, honest estimate of production performance
 
-**Evaluation Metrics:**
-- ❌ **Accuracy** (95.7%): Misleading for imbalanced data
-- ✅ **Recall** (86.1%): Critical for healthcare (minimize missed cases)
-- ✅ **Precision** (45.1%): Control false positives
-- ✅ **F1-Score** (0.592): Harmonic mean for balance
-- ✅ **AUC-ROC** (0.809): Threshold-independent performance
+The final deployed pipeline is then re-fit on the **entire** dataset (with its
+threshold tuned on the full data). The reported metrics remain the
+cross-validated estimates above, not in-sample scores.
+
+**Evaluation Metrics (why these):**
+- ❌ **Accuracy**: Misleading for imbalanced data (predicting "no stroke" scores ~95%)
+- ✅ **Recall**: Critical for healthcare (minimize missed cases)
+- ✅ **Precision**: Control false positives
+- ✅ **F1-Score**: Harmonic mean for balance at the operating threshold
+- ✅ **AUC-ROC**: Threshold-independent ranking quality
 
 ### 7. Production Pipeline Design
 
@@ -210,7 +238,7 @@ ImbPipeline([
 ```python
 {
     'pipeline': complete_pipeline,      # Preprocessing + SMOTEENN + Model
-    'threshold': 0.803,                 # Optimized threshold
+    'threshold': best_threshold,        # Optimized decision threshold
     'model_type': 'xgb'                # Metadata
 }
 ```

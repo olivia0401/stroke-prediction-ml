@@ -2,6 +2,8 @@
 import joblib
 import pandas as pd
 
+from src.preprocessor import normalize_columns
+
 
 class StrokePredictor:
     """Stroke risk predictor using a unified pipeline artifact"""
@@ -16,6 +18,20 @@ class StrokePredictor:
         self.threshold = artifact['threshold']
         self.model_type = artifact.get('model_type', 'unknown')
 
+    def _prepare(self, X) -> pd.DataFrame:
+        """
+        Coerce input to a DataFrame and normalize column names to the
+        lowercase snake_case form the fitted pipeline expects.
+
+        The training pipeline lowercases columns (e.g. ``Residence_type`` ->
+        ``residence_type``); applying the same normalization here keeps
+        train/serve column names consistent so the ColumnTransformer can
+        locate every feature.
+        """
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        return normalize_columns(X)
+
     def predict(self, X: pd.DataFrame) -> pd.Series:
         """
         Predict stroke risk using the optimized threshold.
@@ -26,8 +42,7 @@ class StrokePredictor:
         Returns:
             A Series of binary predictions (0 or 1).
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        X = self._prepare(X)
 
         # The pipeline handles all preprocessing
         y_proba = self.pipeline.predict_proba(X)[:, 1]
@@ -45,8 +60,7 @@ class StrokePredictor:
         Returns:
             A Series of prediction probabilities for the positive class.
         """
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        X = self._prepare(X)
 
         # The pipeline handles all preprocessing
         return self.pipeline.predict_proba(X)

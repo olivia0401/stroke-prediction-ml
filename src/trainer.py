@@ -2,11 +2,13 @@
 import joblib
 import numpy as np
 from pathlib import Path
+from sklearn.base import clone
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
 from sklearn.metrics import (
     f1_score, precision_score, recall_score,
-    precision_recall_curve
+    roc_auc_score, precision_recall_curve
 )
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.combine import SMOTEENN
@@ -39,6 +41,7 @@ class ModelTrainer:
         self.use_smoteenn = use_smoteenn
         self.model = None
         self.best_threshold = 0.5  # Default threshold
+        self.cv_metrics = None  # Cross-validated (held-out) performance estimate
 
         # Best hyperparameters from Exam Notebook (Step 3)
         if model_type == 'rf':
@@ -64,75 +67,126 @@ class ModelTrainer:
 
         logger.info(f"Initialized {model_type} model with SMOTEENN={'ON' if use_smoteenn else 'OFF'}")
 
-    def train(self, X, y, preprocessor=None, use_full_data=True):
+    def _build_pipeline(self, preprocessor=None):
+        """Assemble the (preprocessor ->) SMOTEENN -> classifier pipeline."""
+        steps = []
+        if preprocessor is not None:
+            steps.append(('pre', preprocessor))
+        if self.use_smoteenn:
+            steps.append(('sampler', SMOTEENN(random_state=42)))
+        steps.append(('clf', self.base_model))
+
+        if len(steps) == 1:
+            # Only the classifier, no resampling/preprocessing wrapper needed
+            return clone(self.base_model)
+        return ImbPipeline(steps)
+
+    def train(self, X, y, preprocessor=None, cv_folds=5):
         """
-        Train model with SMOTEENN resampling
+        Fit the final deployment pipeline and produce an honest, cross-validated
+        performance estimate.
+
+        The reported metrics come from ``cv_folds``-fold stratified
+        cross-validation: within each fold the model is fit on the training
+        split and the decision threshold is tuned on that same training split,
+        then both are evaluated on the held-out split. This avoids the
+        optimistic bias of scoring on the data used for fitting/thresholding.
+
+        Separately, a final pipeline is fit on the full dataset (with its
+        threshold tuned on the full data) and saved for deployment.
 
         Args:
-            X, y: Complete dataset (will use all data if use_full_data=True)
-            preprocessor: sklearn ColumnTransformer
-            use_full_data: If True, train on all data like Exam Notebook
+            X, y: Complete dataset.
+            preprocessor: sklearn ColumnTransformer (fit inside the pipeline).
+            cv_folds: Number of stratified CV folds for evaluation.
 
         Returns:
-            dict: Performance metrics
+            dict: Cross-validated performance metrics (mean over folds), with
+                  per-metric standard deviations and the deployment threshold.
         """
         if self.use_mlflow:
             mlflow.start_run()
 
-        # Build pipeline
-        if self.use_smoteenn:
-            if preprocessor:
-                self.model = ImbPipeline([
-                    ('pre', preprocessor),
-                    ('sampler', SMOTEENN(random_state=42)),
-                    ('clf', self.base_model)
-                ])
-            else:
-                self.model = ImbPipeline([
-                    ('sampler', SMOTEENN(random_state=42)),
-                    ('clf', self.base_model)
-                ])
-        else:
-            if preprocessor:
-                self.model = ImbPipeline([
-                    ('pre', preprocessor),
-                    ('clf', self.base_model)
-                ])
-            else:
-                self.model = self.base_model
+        # 1. Honest evaluation via stratified cross-validation
+        logger.info(f"Evaluating with {cv_folds}-fold stratified cross-validation...")
+        metrics = self._cross_val_evaluate(X, y, preprocessor, cv_folds)
 
-        # Train on full data (like Exam Notebook)
-        logger.info("Training model on full dataset with SMOTEENN...")
+        # 2. Fit the final deployment pipeline on ALL data
+        logger.info("Fitting final deployment pipeline on full dataset...")
+        self.model = self._build_pipeline(preprocessor)
         self.model.fit(X, y)
 
-        # Get predictions on full data for threshold optimization
-        y_proba = self.model.predict_proba(X)[:, 1]
+        # Tune the operating threshold for the deployed model on the full data.
+        # (Reported performance still comes from the CV estimate above.)
+        full_proba = self.model.predict_proba(X)[:, 1]
+        self.best_threshold = self._optimize_threshold(y, full_proba)
+        metrics['threshold'] = self.best_threshold
+        self.cv_metrics = metrics
 
-        # Optimize threshold (Step 4 from Exam Notebook)
-        self.best_threshold = self._optimize_threshold(y, y_proba)
-        logger.info(f"Optimized threshold: {self.best_threshold:.3f}")
-
-        # Re-predict with optimized threshold
-        y_pred_optimized = (y_proba >= self.best_threshold).astype(int)
-
-        # Calculate metrics
-        metrics = {
-            'f1_score': f1_score(y, y_pred_optimized),
-            'precision': precision_score(y, y_pred_optimized),
-            'recall': recall_score(y, y_pred_optimized),
-            'threshold': self.best_threshold
-        }
-
-        logger.info(f"F1: {metrics['f1_score']:.4f}, Recall: {metrics['recall']:.4f}, Precision: {metrics['precision']:.4f}")
+        logger.info(
+            "Cross-validated  F1: %.4f (+/- %.4f), Recall: %.4f (+/- %.4f), "
+            "Precision: %.4f (+/- %.4f)",
+            metrics['f1_score'], metrics['f1_score_std'],
+            metrics['recall'], metrics['recall_std'],
+            metrics['precision'], metrics['precision_std'],
+        )
+        logger.info(f"Deployment threshold (tuned on full data): {self.best_threshold:.3f}")
 
         if self.use_mlflow:
             mlflow.log_params({
                 'model_type': self.model_type,
-                'use_smoteenn': self.use_smoteenn
+                'use_smoteenn': self.use_smoteenn,
+                'cv_folds': cv_folds
             })
-            mlflow.log_metrics(metrics)
+            mlflow.log_metrics({k: v for k, v in metrics.items() if isinstance(v, (int, float))})
             mlflow.end_run()
 
+        return metrics
+
+    def _cross_val_evaluate(self, X, y, preprocessor, cv_folds):
+        """
+        Estimate held-out performance with stratified K-fold cross-validation.
+
+        For each fold the pipeline is cloned and fit on the training split, the
+        threshold is tuned on the training split, and F1/precision/recall/AUC
+        are computed on the untouched held-out split. Returns the mean and
+        standard deviation of each metric across folds.
+        """
+        X = X.reset_index(drop=True)
+        y = np.asarray(y)
+
+        skf = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+        fold_scores = {'f1_score': [], 'precision': [], 'recall': [], 'roc_auc': []}
+
+        for fold, (train_idx, test_idx) in enumerate(skf.split(X, y), start=1):
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y[train_idx], y[test_idx]
+
+            pipeline = self._build_pipeline(preprocessor)
+            pipeline.fit(X_train, y_train)
+
+            # Tune threshold ONLY on the training split to avoid leakage
+            train_proba = pipeline.predict_proba(X_train)[:, 1]
+            threshold = self._optimize_threshold(y_train, train_proba)
+
+            # Evaluate on the held-out split
+            test_proba = pipeline.predict_proba(X_test)[:, 1]
+            y_pred = (test_proba >= threshold).astype(int)
+
+            fold_scores['f1_score'].append(f1_score(y_test, y_pred, zero_division=0))
+            fold_scores['precision'].append(precision_score(y_test, y_pred, zero_division=0))
+            fold_scores['recall'].append(recall_score(y_test, y_pred, zero_division=0))
+            fold_scores['roc_auc'].append(roc_auc_score(y_test, test_proba))
+            logger.info(
+                "  Fold %d/%d  F1=%.4f Recall=%.4f Precision=%.4f (thr=%.3f)",
+                fold, cv_folds, fold_scores['f1_score'][-1],
+                fold_scores['recall'][-1], fold_scores['precision'][-1], threshold,
+            )
+
+        metrics = {}
+        for name, values in fold_scores.items():
+            metrics[name] = float(np.mean(values))
+            metrics[f'{name}_std'] = float(np.std(values))
         return metrics
 
     def _optimize_threshold(self, y_true, y_proba):
