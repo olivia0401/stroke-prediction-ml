@@ -94,17 +94,18 @@ def make_bins(X):
 
 def create_preprocessor():
     """
-    Create sklearn ColumnTransformer with medical feature engineering
-    ...
+    Build the ColumnTransformer used for both training and serving.
+
+    age / bmi / avg_glucose_level are fed through in two parallel forms on the
+    same rows: binned into medical bands then one-hot encoded (to capture the
+    non-linear risk thresholds), and also kept as standardized continuous values.
+    The remaining categorical and binary columns are one-hot encoded.
     """
-    # Binning pipeline
-    # Note: FunctionTransformer now correctly references the top-level `make_bins`
     bin_encoder = ImbPipeline([
         ('bin', FunctionTransformer(make_bins, validate=False)),
         ('ohe', OneHotEncoder(handle_unknown='ignore'))
     ])
 
-    # ... rest of the function is the same
     numeric_features = ['age', 'bmi', 'avg_glucose_level']
     preprocessor = ColumnTransformer([
         ('bins', bin_encoder, ['age', 'bmi', 'avg_glucose_level']),

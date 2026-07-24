@@ -62,7 +62,7 @@ def main():
             trainer.model, X, y, y_pred, y_proba, metrics
         )
 
-    print(f"✓ Model saved to {args.output}\n")
+    print(f"[OK] Model saved to {args.output}\n")
 
 
 if __name__ == '__main__':

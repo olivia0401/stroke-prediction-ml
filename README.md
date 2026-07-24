@@ -1,19 +1,22 @@
 # Stroke Prediction ML Service
 
-An end-to-end production-ready machine learning system for stroke risk prediction, addressing the challenges of severe class imbalance (19:1 ratio) through advanced resampling techniques, medical-informed feature engineering, and threshold optimization.
+Predicts stroke risk from routine patient data. The dataset is badly imbalanced
+— only 4.87% of records are stroke cases, roughly 19:1 — so most of the work is
+about not missing the positives: SMOTEENN resampling to rebalance the training
+folds, a few medically-sensible features, and tuning the decision threshold for
+recall instead of accuracy.
 
 [![Demo Video](https://img.youtube.com/vi/ZGAPtW54aSA/hqdefault.jpg)](https://www.youtube.com/watch?v=ZGAPtW54aSA)
 
 
-## 🎯 Project Overview
+## Overview
 
-This project demonstrates comprehensive ML engineering capabilities across the entire pipeline:
-- **Problem**: Binary classification on highly imbalanced medical data (4.87% stroke cases)
-- **Challenge**: Maximize recall (minimize missed stroke cases) while maintaining acceptable precision
-- **Solution**: SMOTEENN + XGBoost + Threshold Optimization
-- **Deployment**: FastAPI backend + Gradio UI for clinical use
+- **Task**: binary classification on imbalanced medical data (4.87% stroke cases)
+- **What's hard**: keeping recall high (few missed strokes) without precision collapsing
+- **Approach**: SMOTEENN + XGBoost + threshold tuning
+- **Serving**: FastAPI backend + Gradio UI
 
-## 🏆 Model Performance
+## Model Performance
 
 > **How these numbers are measured.** All metrics below are **held-out estimates
 > from 5-fold stratified cross-validation** (mean ± standard deviation across
@@ -51,7 +54,7 @@ recall for precision depending on the clinical use case.
 > real-world performance. The table above replaces them with honest
 > cross-validated estimates.
 
-## 🔬 Technical Strategy
+## Technical Strategy
 
 ### 1. Data Preprocessing Pipeline
 
@@ -92,10 +95,10 @@ recall for precision depending on the clinical use case.
 ```
 
 **Why binning?**
-- ✅ Captures medical thresholds (e.g., glucose >126 = diabetes)
-- ✅ Handles non-linear relationships (stroke risk accelerates after 65)
-- ✅ Improves model interpretability for clinicians
-- ✅ Reduces overfitting on continuous outliers
+- Captures medical thresholds (e.g., glucose >126 = diabetes)
+- Handles non-linear relationships (stroke risk accelerates after 65)
+- Improves model interpretability for clinicians
+- Reduces overfitting on continuous outliers
 
 **Encoding Strategy:**
 ```python
@@ -120,7 +123,7 @@ Why SMOTEENN over alternatives?
 | Class Weights | Algorithm-level | Limited effectiveness for severe imbalance | Mild imbalance (5:1) |
 | SMOTE | Over-sample minority | May create noise near decision boundary | Moderate imbalance |
 | ENN | Under-sample majority | Removes borderline majority samples | Cleaning noisy data |
-| **SMOTEENN** ✅ | **Hybrid: SMOTE + ENN** | **Best of both worlds** | **Severe imbalance (19:1)** |
+| **SMOTEENN** | **Hybrid: SMOTE + ENN** | **Best of both worlds** | **Severe imbalance (19:1)** |
 
 **SMOTEENN Workflow:**
 1. **SMOTE**: Synthesize minority samples via k-NN interpolation
@@ -142,10 +145,10 @@ in this pipeline — see the validation section below for exactly what the CV
 measures.
 
 **Why Tree-Based Models?**
-- ✅ Handle non-linear relationships (age × hypertension interactions)
-- ✅ Robust to outliers (extreme BMI values)
-- ✅ Feature importance for clinical interpretability
-- ✅ No need for extensive feature scaling (categorical + numeric mix)
+- Handle non-linear relationships (age × hypertension interactions)
+- Robust to outliers (extreme BMI values)
+- Feature importance for clinical interpretability
+- No need for extensive feature scaling (categorical + numeric mix)
 
 **XGBoost Advantages over Random Forest:**
 ```python
@@ -153,7 +156,7 @@ XGBClassifier(
     n_estimators=200,
     max_depth=5,
     learning_rate=0.1,
-    scale_pos_weight=5,      # 🔑 Critical for imbalance
+    scale_pos_weight=5,      # Critical for imbalance
     random_state=42,
     eval_metric='auc'
 )
@@ -207,21 +210,21 @@ StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 ```
 
 **Why this design?**
-- ✅ Preprocessing, resampling, and threshold tuning all happen **inside** each
+- Preprocessing, resampling, and threshold tuning all happen **inside** each
   fold, so nothing from the validation split leaks into fitting
-- ✅ Stratified folds preserve the ~5% stroke rate in each split
-- ✅ Produces a realistic, honest estimate of production performance
+- Stratified folds preserve the ~5% stroke rate in each split
+- Produces a realistic, honest estimate of production performance
 
 The final deployed pipeline is then re-fit on the **entire** dataset (with its
 threshold tuned on the full data). The reported metrics remain the
 cross-validated estimates above, not in-sample scores.
 
 **Evaluation Metrics (why these):**
-- ❌ **Accuracy**: Misleading for imbalanced data (predicting "no stroke" scores ~95%)
-- ✅ **Recall**: Critical for healthcare (minimize missed cases)
-- ✅ **Precision**: Control false positives
-- ✅ **F1-Score**: Harmonic mean for balance at the operating threshold
-- ✅ **AUC-ROC**: Threshold-independent ranking quality
+- **Accuracy**: Misleading for imbalanced data (predicting "no stroke" scores ~95%)
+- **Recall**: Critical for healthcare (minimize missed cases)
+- **Precision**: Control false positives
+- **F1-Score**: Harmonic mean for balance at the operating threshold
+- **AUC-ROC**: Threshold-independent ranking quality
 
 ### 7. Production Pipeline Design
 
@@ -244,11 +247,11 @@ ImbPipeline([
 ```
 
 **Benefits:**
-- ✅ Single `.pkl` file for deployment
-- ✅ No preprocessing drift (train/serve consistency)
-- ✅ Versioned and reproducible
+- Single `.pkl` file for deployment
+- No preprocessing drift (train/serve consistency)
+- Versioned and reproducible
 
-## 🛠️ Features
+## Features
 
 -   **Advanced Feature Engineering**: Medical-informed binning based on clinical thresholds
 -   **Imbalanced Data Handling**: SMOTEENN (hybrid over/under-sampling) for 19:1 class imbalance

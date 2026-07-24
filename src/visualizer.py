@@ -24,7 +24,7 @@ def plot_confusion_matrix(y_true, y_pred, save_path='results/confusion_matrix.pn
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ Confusion matrix saved to {save_path}")
+    print(f"[OK] Confusion matrix saved to {save_path}")
 
 
 def plot_roc_curve(y_true, y_proba, save_path='results/roc_curve.png'):
@@ -48,7 +48,7 @@ def plot_roc_curve(y_true, y_proba, save_path='results/roc_curve.png'):
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ ROC curve saved to {save_path}")
+    print(f"[OK] ROC curve saved to {save_path}")
 
 
 def plot_feature_importance(model, feature_names, save_path='results/feature_importance.png'):
@@ -68,7 +68,7 @@ def plot_feature_importance(model, feature_names, save_path='results/feature_imp
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.close()
-        print(f"✓ Feature importance saved to {save_path}")
+        print(f"[OK] Feature importance saved to {save_path}")
 
 
 def plot_metrics_summary(metrics, save_path='results/metrics_summary.png'):
@@ -93,7 +93,7 @@ def plot_metrics_summary(metrics, save_path='results/metrics_summary.png'):
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"✓ Metrics summary saved to {save_path}")
+    print(f"[OK] Metrics summary saved to {save_path}")
 
 
 def create_all_visualizations(model, X_test, y_test, y_pred, y_proba, metrics):
@@ -108,5 +108,5 @@ def create_all_visualizations(model, X_test, y_test, y_pred, y_proba, metrics):
     plot_metrics_summary(metrics)
 
     print("\n" + "=" * 60)
-    print("✓ All visualizations saved to results/ directory")
+    print("[OK] All visualizations saved to results/ directory")
     print("=" * 60 + "\n")
