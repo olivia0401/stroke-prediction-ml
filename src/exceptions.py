@@ -1,11 +1,11 @@
-# 自定义两个异常类型，用来在工程里更清晰地表示错误类型。
+"""Project-specific exception types."""
 
 
 class DataLoadError(Exception):
-    """数据加载相关的错误"""
+    """Raised when the input data cannot be loaded."""
     pass
 
 
-class ModelNotFittedError(Exception):
-    """模型还没训练好就拿来预测时抛的错误"""
+class ModelNotFittedError(ValueError):
+    """Raised when prediction is attempted before a model is trained."""
     pass

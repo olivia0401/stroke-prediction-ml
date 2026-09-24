@@ -60,8 +60,17 @@ def preprocess_data(df):
     return X, y, preprocessor
 
 
+BIN_FEATURE_NAMES = ['age_bin', 'bmi_bin', 'glu_bin']
+
+
 def make_bins(X):
-    """Medical-informed binning function"""
+    """
+    Medical-informed binning.
+
+    All bins are left-closed (``right=False``), so each edge belongs to the
+    band it starts: age 25 -> '25-44', BMI 25.0 -> 'Overweight', glucose
+    126 -> '126-139'. The edges match the labels exactly.
+    """
     # Ensure input is a DataFrame with correct columns
     if not isinstance(X, pd.DataFrame):
         X = pd.DataFrame(X, columns=['age', 'bmi', 'avg_glucose_level'])
@@ -70,26 +79,31 @@ def make_bins(X):
 
     df['age_bin'] = pd.cut(
         df['age'],
-        bins=[0, 24, 44, 64, 79, 150],
+        bins=[0, 25, 45, 65, 80, float('inf')],
         labels=['<25', '25-44', '45-64', '65-79', '80+'],
         right=False
     )
 
     df['bmi_bin'] = pd.cut(
         df['bmi'],
-        bins=[0, 18.5, 24.9, 29.9, 100],
+        bins=[0, 18.5, 25, 30, float('inf')],
         labels=['Underweight', 'Normal', 'Overweight', 'Obese'],
         right=False
     )
 
     df['glu_bin'] = pd.cut(
         df['avg_glucose_level'],
-        bins=[0, 70, 84, 99, 109, 125, 139, float('inf')],
+        bins=[0, 70, 85, 100, 110, 126, 140, float('inf')],
         labels=['<70', '70-84', '85-99', '100-109', '110-125', '126-139', '≥140'],
         right=False
     )
 
-    return df[['age_bin', 'bmi_bin', 'glu_bin']]
+    return df[BIN_FEATURE_NAMES]
+
+
+def bin_feature_names(transformer, input_features):
+    """Output column names of the binning step (module-level so it pickles)."""
+    return BIN_FEATURE_NAMES
 
 
 def create_preprocessor():
@@ -102,7 +116,8 @@ def create_preprocessor():
     The remaining categorical and binary columns are one-hot encoded.
     """
     bin_encoder = ImbPipeline([
-        ('bin', FunctionTransformer(make_bins, validate=False)),
+        ('bin', FunctionTransformer(make_bins, validate=False,
+                                    feature_names_out=bin_feature_names)),
         ('ohe', OneHotEncoder(handle_unknown='ignore'))
     ])
 

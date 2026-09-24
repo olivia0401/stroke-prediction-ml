@@ -12,6 +12,7 @@ from sklearn.metrics import (
 )
 from imblearn.pipeline import Pipeline as ImbPipeline
 from imblearn.combine import SMOTEENN
+from .exceptions import ModelNotFittedError
 from .logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -59,7 +60,6 @@ class ModelTrainer:
                 learning_rate=0.1,
                 scale_pos_weight=5,
                 random_state=42,
-                use_label_encoder=False,
                 eval_metric='auc'
             )
         else:
@@ -205,14 +205,14 @@ class ModelTrainer:
     def predict(self, X):
         """Predict with optimized threshold"""
         if self.model is None:
-            raise ValueError("Model not trained yet")
+            raise ModelNotFittedError("Model not trained yet")
         y_proba = self.model.predict_proba(X)[:, 1]
         return (y_proba >= self.best_threshold).astype(int)
 
     def predict_proba(self, X):
         """Get prediction probabilities"""
         if self.model is None:
-            raise ValueError("Model not trained yet")
+            raise ModelNotFittedError("Model not trained yet")
         return self.model.predict_proba(X)
 
     def save_model(self, filepath: str = 'models/model.pkl'):

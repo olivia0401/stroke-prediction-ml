@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import sys
 from pathlib import Path
-import pandas as pd  # Add this line
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.predictor import StrokePredictor

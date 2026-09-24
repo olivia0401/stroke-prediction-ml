@@ -1,18 +1,19 @@
+# Build from the repo root:  docker build -f docker/Dockerfile.ui -t stroke-ui .
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Copy requirements and install
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
 COPY src/ ./src/
-COPY ui/ ./ui/
-COPY models/ ./models/
+COPY scripts/ ./scripts/
+COPY data/ ./data/
+COPY app_ui.py .
 
-# Expose Gradio port
+# The model artifact is gitignored, so train it into the image at build time.
+RUN python scripts/train.py --model xgb --output models/model.pkl
+
 EXPOSE 7860
 
-# Run Gradio
-CMD ["python", "ui/gradio_app.py"]
+CMD ["python", "app_ui.py"]

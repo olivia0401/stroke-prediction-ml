@@ -2,7 +2,6 @@
 import argparse
 import sys
 from pathlib import Path
-import joblib
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -10,7 +9,6 @@ from src.data_loader import load_data
 from src.preprocessor import preprocess_data
 from src.trainer import ModelTrainer
 from src.visualizer import create_all_visualizations
-from sklearn.model_selection import train_test_split
 
 
 def main():
@@ -38,11 +36,12 @@ def main():
     trainer = ModelTrainer(model_type=args.model, use_mlflow=False)
     metrics = trainer.train(X, y, preprocessor=preprocessor)
 
-    # Get predictions for visualization (use full dataset)
+    # In-sample predictions of the deployed model, used only for the optional
+    # --viz plots (the reported metrics above are cross-validated).
     y_pred = trainer.predict(X)
     y_proba = trainer.predict_proba(X)
 
-    # Save (skip saving preprocessor due to pickle issue with lambda functions)
+    # Save the full pipeline + tuned threshold as a single artifact
     trainer.save_model(args.output)
 
     # Results (cross-validated, held-out estimate)

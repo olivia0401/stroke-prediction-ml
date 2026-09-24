@@ -1,4 +1,4 @@
-"""Model performance visualization (SHAP-free)"""
+"""Model performance visualization (confusion matrix, ROC, feature importance, metrics)"""
 import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
@@ -51,34 +51,55 @@ def plot_roc_curve(y_true, y_proba, save_path='results/roc_curve.png'):
     print(f"[OK] ROC curve saved to {save_path}")
 
 
-def plot_feature_importance(model, feature_names, save_path='results/feature_importance.png'):
-    """Plot feature importance"""
-    if hasattr(model, 'feature_importances_'):
-        importances = model.feature_importances_
-        indices = np.argsort(importances)[::-1]
+def _unwrap(model):
+    """Return (classifier, feature_names) from a fitted pipeline or bare model."""
+    steps = getattr(model, 'named_steps', None)
+    if not steps:
+        return model, None
+    clf = steps.get('clf', list(steps.values())[-1])
+    pre = steps.get('pre')
+    names = list(pre.get_feature_names_out()) if pre is not None else None
+    return clf, names
 
-        plt.figure(figsize=(10, 6))
-        plt.title('Feature Importance', fontweight='bold', fontsize=14)
-        plt.barh(range(len(indices)), importances[indices], color='steelblue')
-        plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
-        plt.xlabel('Importance')
-        plt.gca().invert_yaxis()
-        plt.tight_layout()
 
-        Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        print(f"[OK] Feature importance saved to {save_path}")
+def plot_feature_importance(model, feature_names=None, save_path='results/feature_importance.png',
+                            top_n=20):
+    """Plot the top_n feature importances of a fitted tree model or pipeline."""
+    clf, pipeline_names = _unwrap(model)
+    feature_names = pipeline_names or feature_names
+    if not hasattr(clf, 'feature_importances_'):
+        print("[SKIP] Model has no feature_importances_; feature importance plot not created")
+        return
+    importances = clf.feature_importances_
+    if feature_names is None or len(feature_names) != len(importances):
+        feature_names = [f'f{i}' for i in range(len(importances))]
+    indices = np.argsort(importances)[::-1][:top_n]
+
+    plt.figure(figsize=(10, 6))
+    plt.title('Feature Importance', fontweight='bold', fontsize=14)
+    plt.barh(range(len(indices)), importances[indices], color='steelblue')
+    plt.yticks(range(len(indices)), [feature_names[i] for i in indices])
+    plt.xlabel('Importance')
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+
+    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(save_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    print(f"[OK] Feature importance saved to {save_path}")
+
+
+SUMMARY_METRICS = ('f1_score', 'precision', 'recall', 'roc_auc')
 
 
 def plot_metrics_summary(metrics, save_path='results/metrics_summary.png'):
-    """Plot metrics summary"""
-    metric_names = list(metrics.keys())
-    metric_values = list(metrics.values())
+    """Bar chart of the cross-validated headline metrics (std/threshold keys are skipped)"""
+    metric_names = [m for m in SUMMARY_METRICS if m in metrics]
+    metric_values = [metrics[m] for m in metric_names]
 
     plt.figure(figsize=(8, 5))
     bars = plt.bar(metric_names, metric_values,
-                   color=['#3498db', '#2ecc71', '#e74c3c'])
+                   color=['#3498db', '#2ecc71', '#e74c3c', '#9b59b6'][:len(metric_names)])
     plt.ylim(0, 1.0)
     plt.ylabel('Score')
     plt.title('Model Performance Metrics', fontweight='bold', fontsize=14)
@@ -104,7 +125,7 @@ def create_all_visualizations(model, X_test, y_test, y_pred, y_proba, metrics):
 
     plot_confusion_matrix(y_test, y_pred)
     plot_roc_curve(y_test, y_proba[:, 1])
-    plot_feature_importance(model, X_test.columns.tolist())
+    plot_feature_importance(model)
     plot_metrics_summary(metrics)
 
     print("\n" + "=" * 60)

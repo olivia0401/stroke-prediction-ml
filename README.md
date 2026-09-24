@@ -24,15 +24,16 @@ recall instead of accuracy.
 > decision threshold is tuned on that same training split, then both are scored
 > on the untouched validation split. This avoids the optimistic bias you get
 > from scoring on the data used to fit the model and tune the threshold.
-> Numbers are reproducible with `python3 scripts/train.py --model xgb`.
+> Numbers are reproducible with `python3 scripts/train.py --model xgb` (and
+> `--model rf`); CV folds and all models use fixed seeds.
 
 ### Best Model: XGBoost + SMOTEENN + Threshold Optimization
 
 | Metric | Value (5-fold CV) | Clinical Impact |
 |--------|-------------------|-----------------|
-| **F1-Score** | **0.22 ± 0.02** | Modest at the F1-optimal threshold under severe imbalance |
-| **Recall** | **0.29 ± 0.05** | Detects ~29 out of 100 stroke cases at this operating point |
-| **Precision** | **0.18 ± 0.02** | ~18% of predicted strokes are true positives |
+| **F1-Score** | **0.17 ± 0.05** | Modest at the F1-optimal threshold under severe imbalance |
+| **Recall** | **0.21 ± 0.07** | Detects ~21 out of 100 stroke cases at this operating point |
+| **Precision** | **0.14 ± 0.03** | ~14% of predicted strokes are true positives |
 | **AUC-ROC** | **0.79 ± 0.02** | Solid threshold-independent ranking ability |
 
 The **AUC-ROC of ~0.79** shows the model has real discriminative power; the low
@@ -45,14 +46,25 @@ recall for precision depending on the clinical use case.
 
 | Model | F1-Score | Recall | Precision | AUC-ROC |
 |-------|----------|--------|-----------|---------|
-| **XGBoost + SMOTEENN** | **0.22 ± 0.02** | **0.29 ± 0.05** | 0.18 ± 0.02 | 0.79 ± 0.02 |
-| Random Forest + SMOTEENN | 0.20 ± 0.06 | 0.22 ± 0.09 | 0.19 ± 0.05 | 0.81 ± 0.01 |
+| **XGBoost + SMOTEENN** | **0.17 ± 0.05** | **0.21 ± 0.07** | 0.14 ± 0.03 | 0.79 ± 0.02 |
+| Random Forest + SMOTEENN | 0.15 ± 0.05 | 0.16 ± 0.05 | 0.15 ± 0.04 | 0.81 ± 0.01 |
+
+XGBoost is kept as the deployed model for its higher recall; Random Forest ranks
+slightly better (AUC 0.81) but recovers fewer strokes at its F1-optimal threshold.
 
 > **Note on earlier figures.** Prior versions of this README reported much
 > higher numbers (e.g. F1 ≈ 0.59, recall ≈ 86%). Those were computed on the
 > same data used to fit the model and tune the threshold, so they overstated
 > real-world performance. The table above replaces them with honest
 > cross-validated estimates.
+>
+> **Bin-edge fix.** A later version reported XGBoost F1 0.22 / recall 0.29.
+> The age, BMI and glucose bin edges did not match their labels at that point
+> (for example, the "<25" age band actually ended at 24). Correcting the edges
+> (now covered by `tests/test_bins.py`) and re-running gives the numbers above.
+> The fold standard deviations are large relative to the change, because the
+> F1-optimal threshold is tuned on a small number of positives. Read the
+> threshold-dependent metrics as rough and AUC as the stable signal.
 
 ## Technical Strategy
 
@@ -107,7 +119,7 @@ ColumnTransformer([
     ('num', StandardScaler(), numeric_features),                    # Standardization
     ('cat', OneHotEncoder(), categorical_features)                  # One-Hot
 ])
-# Final feature space: ~45 dimensions
+# Final feature space: 38 dimensions (16 bin one-hots + 3 scaled + 19 categorical one-hots)
 ```
 
 ### 3. Imbalanced Data Handling
@@ -259,30 +271,42 @@ ImbPipeline([
 -   **Production Pipeline**: Unified artifact with preprocessing + sampling + model
 -   **Web UI**: Gradio interface for clinician-friendly predictions
 -   **REST API**: FastAPI service for system integration
--   **Model Interpretability**: SHAP values and feature importance
--   **Automated Testing**: Unit tests and CI/CD via GitHub Actions
+-   **Model Interpretability**: tree feature-importance plot over the 38 encoded features (`scripts/train.py --viz`)
+-   **Automated Testing**: pytest (bin-edge, preprocessing and end-to-end train/save/serve tests) plus flake8, run in CI via GitHub Actions
+-   **Docker**: separate images for the API and the Gradio UI
 
 ## Project Structure
 
 ```
 .
+├── .github/workflows/ci.yml  # pytest + flake8 on every push/PR
 ├── api/
 │   └── app.py            # FastAPI service
 ├── data/
 │   └── stroke-data.csv   # Dataset
+├── docker/
+│   ├── Dockerfile.api    # FastAPI image (trains the model at build time)
+│   └── Dockerfile.ui     # Gradio image (trains the model at build time)
 ├── models/
-│   └── model.pkl         # Saved model artifact (generated after training)
+│   └── model.pkl         # Saved model artifact (generated after training, gitignored)
+├── notebooks/
+│   └── stroke_prediction_imbalanced.ipynb  # Original exploration
 ├── scripts/
-│   └── train.py          # CLI script to train the model
+│   ├── train.py          # CLI script to train the model (--viz for plots)
+│   └── smoke_predict.py  # Score a few example patients with the saved model
 ├── src/
 │   ├── data_loader.py    # Data loading utility
+│   ├── exceptions.py     # DataLoadError, ModelNotFittedError
+│   ├── logger.py         # Logging setup (console + logs/training.log)
 │   ├── preprocessor.py   # Preprocessing and feature engineering pipeline
 │   ├── trainer.py        # Model training and threshold optimization logic
-│   └── predictor.py      # Prediction logic using the saved model
+│   ├── predictor.py      # Prediction logic using the saved model
+│   └── visualizer.py     # Confusion matrix, ROC, feature importance, metrics plots
 ├── tests/
+│   ├── test_bins.py      # Bin edges agree with their labels
+│   ├── test_pipeline.py  # Train on a subset, save, reload, predict
 │   └── test_preprocessor.py # Unit tests for the preprocessing pipeline
 ├── app_ui.py             # Gradio web interface
-├── test_ui.py            # UI testing script
 └── requirements.txt      # Project dependencies
 ```
 
@@ -293,8 +317,8 @@ ImbPipeline([
     pip install -r requirements.txt
     ```
 
-2.  **Run Unit Tests (Optional):**
-    Verify that the preprocessing pipeline works as expected.
+2.  **Run Tests (Optional):**
+    Checks the bin edges and preprocessing, and runs a small end-to-end train/save/predict pass.
     ```bash
     pytest -v
     ```
@@ -343,6 +367,13 @@ ImbPipeline([
             "bmi": 36.6,
             "smoking_status": "formerly smoked"
           }'
+    ```
+
+7.  **Run with Docker (Alternative):**
+    Build from the repo root. Each image trains the XGBoost model during the build, because `models/*.pkl` is not committed.
+    ```bash
+    docker build -f docker/Dockerfile.api -t stroke-api . && docker run -p 8000:8000 stroke-api
+    docker build -f docker/Dockerfile.ui  -t stroke-ui  . && docker run -p 7860:7860 stroke-ui
     ```
 
 ## Web UI Features
