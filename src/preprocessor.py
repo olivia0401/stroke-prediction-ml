@@ -36,8 +36,9 @@ def preprocess_data(df):
     Returns:
         X, y, preprocessor (sklearn ColumnTransformer)
     """
-    df = df.copy()
+    df = normalize_columns(df)
 
+    # Normalize first so filtering and ID removal also work with raw casing.
     # 1. Row Filtering
     if 'gender' in df.columns:
         df = df[df['gender'] != 'Other']

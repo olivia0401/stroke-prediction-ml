@@ -69,3 +69,12 @@ def test_create_preprocessor():
     assert 'num' in transformer_names
     assert 'cat' in transformer_names
 
+
+def test_normalization_precedes_filtering(sample_data):
+    renamed = sample_data.rename(columns={'id': 'ID', 'gender': 'Gender', 'stroke': 'Stroke'})
+    X, y, _ = preprocess_data(renamed)
+    assert len(X) == len(y) == 3
+    assert 'id' not in X.columns
+    assert 'stroke' not in X.columns
+    assert 'Other' not in X['gender'].values
+
